@@ -26,6 +26,8 @@ public class TypingManager : MonoBehaviour
     string _currentInput;
     /// <summary>入力を待っている日本語がある_answerListのインデックス</summary>
     int _typingIndex = 0;
+    /// <summary>次に参照するインデックスとの差</summary>
+    int _nextIndex = 0;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -53,12 +55,31 @@ public class TypingManager : MonoBehaviour
         int rand = UnityEngine.Random.Range(0, TypingList.Typing.Count);
         _answerJ = TypingList.Typing[rand];
 
-        //答えのリストを更新
+        //答えの文字列分割リストを更新
         _answerList?.Clear();
+
+        for (int i = 0; i < _answerJ.Length; i++)
+        {
+            switch (_answerJ[i].ToString())
+            {
+                case "っ":
+                    _answerList.Add((_answerJ[i].ToString() + _answerJ[i + 1].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString() + _answerJ[i + 1].ToString()][0], false));
+                    i++;
+                    break;
+                case "ゃ" or "ゅ" or "ょ" or "ぁ" or "ぃ" or "ぅ" or "ぇ" or "ぉ":
+                    _answerList[_answerList.Count - 1] = (_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString()][0], false);
+                    break;
+                default:
+                    _answerList.Add((_answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString()][0], false));
+                    break;
+            }
+        }
+
+        /*
         foreach (var s in _answerJ)
         {
             _answerList.Add((s.ToString(), _wordBaseData.WordBaseJtoE[s.ToString()][0], false));
-        }
+        }*/
 
         //答えに対応する文字列（ローマ字）を更新
         _answerE = "";
@@ -82,6 +103,7 @@ public class TypingManager : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Return))
         {
+            //タイピング完了時のみ
             if (_answerE == _currentInput)
             {
                 _currentInput = "";
@@ -94,14 +116,18 @@ public class TypingManager : MonoBehaviour
         }
         else
         {
-            foreach (var key in Enum.GetValues(typeof(KeyCode)))
+            //タイピング未完了時のみ
+            if (_answerE != _currentInput)
             {
-                if (Input.GetKeyDown((KeyCode)key))
+                foreach (var key in Enum.GetValues(typeof(KeyCode)))
                 {
-                    //_inputList.Add(((KeyCode)key).ToString());
-                    _input = (char)((KeyCode)key);
-                    CheckWord();
-                    break;
+                    if (Input.GetKeyDown((KeyCode)key))
+                    {
+                        //_inputList.Add(((KeyCode)key).ToString());
+                        _input = (char)((KeyCode)key);
+                        CheckWord();
+                        break;
+                    }
                 }
             }
         }
@@ -136,14 +162,17 @@ public class TypingManager : MonoBehaviour
         }
         else
         {
-            foreach (var key in Enum.GetValues(typeof(KeyCode)))
+            if (_answerE != _currentInput)
             {
-                if (Input.GetKeyDown((KeyCode)key))
+                foreach (var key in Enum.GetValues(typeof(KeyCode)))
                 {
-                    //_inputList.Add(((KeyCode)key).ToString());
-                    _input = (char)((KeyCode)key);
-                    CheckWord();
-                    break;
+                    if (Input.GetKeyDown((KeyCode)key))
+                    {
+                        //_inputList.Add(((KeyCode)key).ToString());
+                        _input = (char)((KeyCode)key);
+                        CheckWord();
+                        break;
+                    }
                 }
             }
         }
@@ -157,6 +186,17 @@ public class TypingManager : MonoBehaviour
         //入力待ちの日本語を入力し始めているかどうか
         if (!_answerList[_typingIndex].isTyping)
         {
+            foreach(var s in _answerList[_typingIndex].japanese)
+            {
+
+            }
+
+            _nextIndex = 0;
+            if (_answerList[_typingIndex].japanese.Contains("っ"))
+            {
+
+            }
+
             //答えの入力待ち単語に対応するローマ字変換を取得
             var check = _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese];
             foreach (var c in check)
@@ -171,6 +211,7 @@ public class TypingManager : MonoBehaviour
                     {
                         _currentWaitTyping.Enqueue(c2);
                     }
+                    _nextIndex++;
                     break;
                 }
             }
@@ -183,37 +224,49 @@ public class TypingManager : MonoBehaviour
             }
         }
 
-        //入力した文字の正誤判定
-        if (_input == _currentWaitTyping.Peek())
+        if (_answerList[_typingIndex].isTyping)
         {
-            _currentInput += _input;
-            _currentWaitTyping.Dequeue();
-
-            if (_currentWaitTyping.Count <= 0)
+            //入力した文字の正誤判定
+            if (_input == _currentWaitTyping.Peek())
             {
-                _typingIndex++;
-            }
+                _currentInput += _input;
+                _currentWaitTyping.Dequeue();
 
-            //答えに対応するローマ字の表示を更新
-            _outputTextE.text = "";
-            for (int i = 0; i < _answerE.Length; i++)
-            {
-                if (i < _currentInput.Length)
+                if (_currentWaitTyping.Count <= 0)
                 {
-                    if (_currentInput[i] == _answerE[i])
+                    _typingIndex += _nextIndex;
+                }
+
+                //答えに対応するローマ字の表示を更新
+                _outputTextE.text = "";
+                for (int i = 0; i < _answerE.Length; i++)
+                {
+                    if (i < _currentInput.Length)
                     {
-                        _outputTextE.text += $"<color=black>{_answerE[i]}</color>";
+                        if (_currentInput[i] == _answerE[i])
+                        {
+                            _outputTextE.text += $"<color=black>{_answerE[i]}</color>";
+                        }
+                        else
+                        {
+                            _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
+                        }
                     }
                     else
                     {
                         _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
                     }
                 }
-                else
-                {
-                    _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
-                }
             }
+            else
+            {
+                //間違えた文字を打った時
+            }
+        }
+        else
+        {
+            //間違えた文字を打った時
+
         }
     }
 
@@ -795,6 +848,9 @@ public class TypingManager : MonoBehaviour
             _wordBaseEtoJ["xxtu"] = "っっ";
             _wordBaseEtoJ["lltsu"] = "っっ";
             _wordBaseEtoJ["xxtsu"] = "っっ";
+
+            //伸ばし棒
+            _wordBaseEtoJ["-"] = "ー";
         }
 
         public void JapaneseToEnglish()
