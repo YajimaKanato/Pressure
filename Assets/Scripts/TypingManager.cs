@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.UI;
+using Unity.VisualScripting;
 
 public class TypingManager : MonoBehaviour
 {
@@ -12,27 +13,22 @@ public class TypingManager : MonoBehaviour
     /// <summary>入力された文字列を分割したもの</summary>
     List<string> _inputList = new List<string>();
     /// <summary>答えの文字列を分割したもののセットリスト</summary>
-    List<(string japanese, string english, bool isTyping)> _answerList = new List<(string, string, bool)>();
-    /// <summary>現在入力を待っている文字列</summary>
-    Queue<char> _currentWaitTyping = new Queue<char>();
-    /// <summary>次の入力の候補となる文字</summary>
-    List<char> _nextInput = new List<char>();
-    /// <summary>入力待ちの文字に対するローマ字の入力候補</summary>
-    List<string> _answerCandidate = new List<string>();
+    List<(string japanese, string english)> _answerList = new List<(string, string)>();
 
-
-    /// <summary>入力された文字列</summary>
-    string _input;
+    /// <summary>答えとなる文字列（日本語）</summary>
+    string _stepWord = "ん";
     /// <summary>答えとなる文字列（日本語）</summary>
     string _answerJ = "こんにちは";
     /// <summary>答えとなる文字列（ローマ字）</summary>
-    string _answerE;
+    string _answerE = "konnnitiha";
+    /// <summary>入力待ちの文字に対するローマ字の入力候補</summary>
+    string _answerCandidate;
     /// <summary>現在までに入力完了した文字列</summary>
     string _currentInput;
+    /// <summary>今入力された文字列</summary>
+    string _input;
     /// <summary>入力を待っている日本語がある_answerListのインデックス</summary>
     int _typingIndex = 0;
-    /// <summary>次に参照するインデックスとの差</summary>
-    int _nextIndex = 0;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -68,23 +64,17 @@ public class TypingManager : MonoBehaviour
             switch (_answerJ[i].ToString())
             {
                 case "っ":
-                    _answerList.Add((_answerJ[i].ToString() + _answerJ[i + 1].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString() + _answerJ[i + 1].ToString()][0], false));
+                    _answerList.Add((_answerJ[i].ToString() + _answerJ[i + 1].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString() + _answerJ[i + 1].ToString()][0]));
                     i++;
                     break;
                 case "ゃ" or "ゅ" or "ょ" or "ぁ" or "ぃ" or "ぅ" or "ぇ" or "ぉ":
-                    _answerList[_answerList.Count - 1] = (_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString()][0], false);
+                    _answerList[_answerList.Count - 1] = (_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString()][0]);
                     break;
                 default:
-                    _answerList.Add((_answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString()][0], false));
+                    _answerList.Add((_answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString()][0]));
                     break;
             }
         }
-
-        /*
-        foreach (var s in _answerJ)
-        {
-            _answerList.Add((s.ToString(), _wordBaseData.WordBaseJtoE[s.ToString()][0], false));
-        }*/
 
         //答えに対応する文字列（ローマ字）を更新
         _answerE = "";
@@ -128,8 +118,9 @@ public class TypingManager : MonoBehaviour
                 {
                     if (Input.GetKeyDown((KeyCode)key))
                     {
-                        _inputList.Add(((KeyCode)key).ToString());
-                        //_input = (char)((KeyCode)key);
+                        Debug.Log((char)(KeyCode)key);
+                        //_inputList.Add(((KeyCode)key).ToString());
+                        _input += (char)(KeyCode)key;
                         CheckWord();
                         break;
                     }
@@ -188,291 +179,122 @@ public class TypingManager : MonoBehaviour
     /// </summary>
     void CheckWord()
     {
-        //小文字を含むかどうか
-        if (_answerList[_typingIndex].japanese.Length >= 2)
+        //候補を取得
+        GetCandidate();
+
+        //"ん"のような文字かどうか
+        if (_answerList[_typingIndex].japanese == _stepWord)
         {
-            _answerCandidate.Clear();
-
-            //小文字のうち"っ"かそれ以外か
-            if (_answerList[_typingIndex].japanese.Contains("っ"))
+            if (_answerCandidate == "" && _wordBaseData.WordBaseJtoE[_stepWord].Contains(_input.Substring(0, _input.Length - 1)))
             {
-                //"っ"を含んだ文字列に対するローマ字を入力しようしているかどうかを調べる
-                foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese])
-                {
-                    if (s.Contains(_input))
-                    {
-                        _answerCandidate.Add(s);
-                    }
-                }
-
-                //"っ"を含んだ文字列に対するローマ字を入力しようとしていなかったら
-                if (_answerCandidate.Count == 0)
-                {
-                    foreach (var s in _wordBaseData.WordBaseJtoE["っ"])
-                    {
-                        if (s.Contains(_input))
-                        {
-                            _answerCandidate.Add(s);
-                        }
-                    }
-
-                    //"っ"の入力を受け付けられそうなら文字列を分割
-                    if (_answerCandidate.Count > 0)
-                    {
-                        string substr1 = _answerList[_typingIndex].japanese[0].ToString();
-                        string substr2 = _answerList[_typingIndex].japanese.Substring(1, _answerList[_typingIndex].japanese.Length - 1);
-
-                        _answerList.Insert(_typingIndex + 1, (substr1, _answerCandidate[0], true));
-                        _answerList.Insert(_typingIndex + 2, (substr2, _wordBaseData.WordBaseJtoE[substr2][0], false));
-                        _answerList.RemoveAt(_typingIndex);
-                    }
-                }
+                Debug.Log("StepWordの自動変換");
+                //"nk"のようにして打った時
+                //答えの文字列を更新
+                _answerList[_typingIndex] = (_stepWord, _input.Substring(0, _input.Length - 1));
+                //入力文字を更新
+                _input = _input[_input.Length - 1].ToString();
+                //入力待ちの文字列のインデックスを更新
+                _typingIndex++;
+                //候補を再取得
+                GetCandidate();
             }
-            else
-            {
-                //"っ"以外の小さい文字について調べる
-                foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese])
-                {
-                    if (s.Contains(_input))
-                    {
-                        _answerCandidate.Add(s);
-                    }
-                }
+        }
 
-                //小さい文字を含んだ文字列に対するローマ字の候補に適したものを入力しようとしていなかったら
-                if (_answerCandidate.Count == 0 && _input.Length >= 2)
-                {
-                    foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese[0].ToString()])
-                    {
-                        if (s.Contains(_input))
-                        {
-                            _answerCandidate.Add(s);
-                        }
-                    }
-
-                    //文字列を分割する
-                    if (_answerCandidate.Count > 0)
-                    {
-                        string substr1 = _answerList[_typingIndex].japanese[0].ToString();
-                        string substr2 = _answerList[_typingIndex].japanese.Substring(1, _answerList[_typingIndex].japanese.Length - 1);
-
-                        _answerList.Insert(_typingIndex + 1, (substr1, _answerCandidate[0], true));
-                        _answerList.Insert(_typingIndex + 2, (substr2, _wordBaseData.WordBaseJtoE[substr2][0], false));
-                        _answerList.RemoveAt(_typingIndex);
-                    }
-                }
-            }
+        //タイピングの正誤判定
+        if (_answerCandidate == "")
+        {
+            //入力した文字を消す
+            _input = _input.Substring(0, _input.Length - 1);
+            Debug.Log("タイピング失敗");
         }
         else
         {
-            foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese])
-            {
-                if (s.Contains(_input))
-                {
-                    _answerCandidate.Add(s);
-                }
-            }
-        }
+            //入力完了文字列の更新
+            _currentInput += _input[_input.Length - 1];
+            Debug.Log(_currentInput);
 
-        if (_answerCandidate.Count == 0)
-        {
-            //ローマ字の頭文字のタイピング失敗
-
-        }
-        else
-        {
-            //リストの（ディープ）コピー
-            var candidateCopy = new List<string>(_answerCandidate);
-            //ローマ字候補の更新
-            _answerCandidate.Clear();
-            foreach (var s in candidateCopy)
+            //入力文字列が候補に一致したら
+            if (_answerCandidate == _input)
             {
-                if (s.Contains(_input))
-                {
-                    _answerCandidate.Add(s);
-                }
-            }
-
-            //入力候補に適した入力をしなかったら
-            if (_answerCandidate.Count == 0)
-            {
-                //候補を元に戻す
-                _answerCandidate = new List<string>(candidateCopy);
-                //入力した文字を消す
-                _input = _input.Substring(0, _input.Length - 1);
+                Debug.Log($"{_answerList[_typingIndex].japanese}のタイピング完了");
+                //入力を初期化
+                _input = "";
+                //入力待ちの文字列のインデックスを更新
+                _typingIndex++;
             }
 
             //表示する文字列の更新
+            _answerE = "";
+            foreach (var s in _answerList)
+            {
+                _answerE += s.english;
+            }
+            Debug.Log(_answerE);
+
+            //文字列の表示を更新
+            _outputTextE.text = "";
+            for (int i = 0; i < _answerE.Length; i++)
+            {
+                if (i < _currentInput.Length)
+                {
+                    //一致しているところ
+                    _outputTextE.text += $"<color=black>{_answerE[i]}</color>";
+                }
+                else
+                {
+                    //一致していないところ
+                    _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
+                }
+            }
         }
+    }
 
-        /*
-        //入力待ちの日本語を入力し始めているかどうか
-        if (!_answerList[_typingIndex].isTyping)
+    /// <summary>
+    /// 入力文字列の候補を取得する関数
+    /// </summary>
+    void GetCandidate()
+    {
+        //入力待ちの文字列に対するローマ字の候補を更新する
+        _answerCandidate = "";
+        for (int i = 0; i < _answerList[_typingIndex].japanese.Length; i++)
         {
-            if (_answerList[_typingIndex].japanese[0].ToString() == "っ")
+            //文字列に対するローマ字を入力しようとしているかを調べる
+            //文字列については後ろからだんだん狭める
+            foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - i)])
             {
-                _nextInput.Clear();
-                _answerCandidate.Clear();
-                foreach (var s in _wordBaseData.WordBaseJtoE["っ"])
+                if (s.Contains(_input))
                 {
-                    if (s[0].ToString() == _input)
-                    {
-                        _answerCandidate.Add(s);
-                    }
-                }
-
-                //入力した文字に対して正常に候補を得られたら
-                if (_answerCandidate.Count > 0)
-                {
-                    //"っ"を含む文字列を分割
-                    _answerList.Insert(_typingIndex + 1, (_answerList[_typingIndex].japanese[0].ToString(), _answerCandidate[0], false));
-                    _answerList.Insert(_typingIndex + 2, (_answerList[_typingIndex].japanese.Substring(1, _answerList[_typingIndex].japanese.Length - 1), _answerCandidate[0], false));
-                    //もともとの文字列を削除
-                    _answerList.RemoveAt(_typingIndex);
-                }
-            }
-            else if (_answerList[_typingIndex].japanese.Contains("ゃ") ||
-                _answerList[_typingIndex].japanese.Contains("ゅ") ||
-                _answerList[_typingIndex].japanese.Contains("ょ") ||
-                _answerList[_typingIndex].japanese.Contains("ぁ") ||
-                _answerList[_typingIndex].japanese.Contains("ぃ") ||
-                _answerList[_typingIndex].japanese.Contains("ぅ") ||
-                _answerList[_typingIndex].japanese.Contains("ぇ") ||
-                _answerList[_typingIndex].japanese.Contains("ぉ"))
-            {
-                _answerCandidate.Clear();
-                string[] words = { "ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ" };
-                foreach (string word in words)
-                {
-                    foreach (var s in _wordBaseData.WordBaseJtoE[word])
-                    {
-                        if (s[0].ToString() == _input)
-                        {
-                            _answerCandidate.Add(s);
-                        }
-                    }
-
-                    if (_answerCandidate.Count > 0)
-                    {
-                        break;
-                    }
-                }
-
-                //入力した文字に対して正常に候補を得られたら
-                if (_answerCandidate.Count > 0)
-                {
-                    //"っ"以外の小さい文字を含む文字列を分割
-                    _answerList.Insert(_typingIndex + 1, (_answerList[_typingIndex].japanese[_answerList[_typingIndex].japanese.Length - 1].ToString(), _answerCandidate[0], false));
-                    _answerList.Insert(_typingIndex + 1, (_answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - 1), _answerCandidate[0], false));
-                    //もともとの文字列を削除
-                    _answerList.RemoveAt(_typingIndex);
-                }
-            }
-            else
-            {
-                //小さい文字を含む文字列以外の文字に対する候補を取得
-                _answerCandidate.Clear();
-                foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese])
-                {
-                    if (s[0].ToString() == _input)
-                    {
-                        _answerCandidate.Add(s);
-                    }
-                }
-            }
-        }*/
-
-        /*
-        //入力待ちの日本語を入力し始めているかどうか
-        if (!_answerList[_typingIndex].isTyping)
-        {
-            _nextIndex = 0;
-            //"っ"を含んだ文字列の時の処理
-            if (_answerList[_typingIndex].japanese.Contains("っ"))
-            {
-                //"っ"に対応する文字を入力したかどうかを判定
-                var lxtu = _wordBaseData.WordBaseJtoE["っ"];
-                foreach(var j in lxtu)
-                {
-                    if (_input == j[0])
-                    {
-
-                        break;
-                    }
-                }
-            }
-
-            //答えの入力待ち単語に対応するローマ字変換を取得
-            var check = _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese];
-            foreach (var c in check)
-            {
-                //同じ文字から始まるローマ字列の場合に変な挙動になる
-                if (c[0] == _input)
-                {
-                    //答えに対応するローマ字を、入力されたローマ字から始まるものに変更する
-                    _answerList[_typingIndex] = (_answerList[_typingIndex].japanese, c, true);
-                    _currentWaitTyping.Clear();
-                    foreach (var c2 in c)
-                    {
-                        _currentWaitTyping.Enqueue(c2);
-                    }
-                    _nextIndex++;
+                    //入力する文字列の候補を取得
+                    _answerCandidate = s;
+                    Debug.Log("候補取得:" + s);
                     break;
                 }
             }
 
-            //答えのローマ字の文字列を更新する
-            _answerE = "";
-            foreach (var c in _answerList)
+            //ローマ字の候補を得られたら（適した入力をしようとしていたら）
+            if (_answerCandidate != "")
             {
-                _answerE += c.english;
+                if (i > 0)
+                {
+                    //文字列を分割する
+                    string str1 = _answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - i);
+                    string str2 = _answerList[_typingIndex].japanese.Substring(_answerList[_typingIndex].japanese.Length - i);
+
+                    //分割した文字列に対して答えの文字列を更新する
+                    _answerList.Insert(_typingIndex + 1, (str1, _answerCandidate));
+                    _answerList.Insert(_typingIndex + 2, (str2, _wordBaseData.WordBaseJtoE[str2][0]));
+                    _answerList.RemoveAt(_typingIndex);
+
+                    Debug.Log("分割後文字列\n" + $"{str1}:{str2}");
+                }
+                else
+                {
+                    //分割した正解文字列を更新
+                    _answerList[_typingIndex] = (_answerList[_typingIndex].japanese, _answerCandidate);
+                }
+                break;
             }
         }
-
-        if (_answerList[_typingIndex].isTyping)
-        {
-            //入力した文字の正誤判定
-            if (_input == _currentWaitTyping.Peek())
-            {
-                _currentInput += _input;
-                _currentWaitTyping.Dequeue();
-
-                if (_currentWaitTyping.Count <= 0)
-                {
-                    _typingIndex += _nextIndex;
-                }
-
-                //答えに対応するローマ字の表示を更新
-                _outputTextE.text = "";
-                for (int i = 0; i < _answerE.Length; i++)
-                {
-                    if (i < _currentInput.Length)
-                    {
-                        if (_currentInput[i] == _answerE[i])
-                        {
-                            _outputTextE.text += $"<color=black>{_answerE[i]}</color>";
-                        }
-                        else
-                        {
-                            _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
-                        }
-                    }
-                    else
-                    {
-                        _outputTextE.text += $"<color=white>{_answerE[i]}</color>";
-                    }
-                }
-            }
-            else
-            {
-                //間違えた文字を打った時
-            }
-        }
-        else
-        {
-            //間違えた文字を打った時
-
-        }*/
     }
 
     /// <summary>
@@ -1054,7 +876,7 @@ public class TypingManager : MonoBehaviour
             _wordBaseEtoJ["lltsu"] = "っっ";
             _wordBaseEtoJ["xxtsu"] = "っっ";
 
-            //伸ばし棒
+            //記号
             _wordBaseEtoJ["-"] = "ー";
         }
 
