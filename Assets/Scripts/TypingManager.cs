@@ -1,8 +1,7 @@
 using System;
 using UnityEngine;
-using System.Collections.Generic;
 using UnityEngine.UI;
-using Unity.VisualScripting;
+using System.Collections.Generic;
 
 public class TypingManager : MonoBehaviour
 {
@@ -15,25 +14,26 @@ public class TypingManager : MonoBehaviour
     /// <summary>答えの文字列を分割したもののセットリスト</summary>
     List<(string japanese, string english)> _answerList = new List<(string, string)>();
 
-    /// <summary>答えとなる文字列（日本語）</summary>
+    /// <summary>入力途中でも次に関係ない文字が入力されると自動変換される文字（"ん"など）</summary>
     string _stepWord = "ん";
     /// <summary>答えとなる文字列（日本語）</summary>
     string _answerJ = "こんにちは";
     /// <summary>答えとなる文字列（ローマ字）</summary>
     string _answerE = "konnnitiha";
-    /// <summary>入力待ちの文字に対するローマ字の入力候補</summary>
+    /// <summary>入力待ちの日本語に対するローマ字の入力候補から一つだけ選んだもの</summary>
     string _answerCandidate;
-    /// <summary>現在までに入力完了した文字列</summary>
+    /// <summary>現在までに入力完了したローマ字の文字列</summary>
     string _currentInput;
-    /// <summary>今入力された文字列</summary>
+    /// <summary>入力待ちの日本語が入力完了になるまでに正しく入力された文字列</summary>
     string _input;
-    /// <summary>入力を待っている日本語がある_answerListのインデックス</summary>
+    /// <summary>入力待ちの日本語がある_answerListのインデックス</summary>
     int _typingIndex = 0;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        //日本語とローマ字の対応表を取得
         _wordBaseData = new WordBaseData();
-        _outputTextE.text = "";
+        //答えを設定
         AnswerSet();
     }
 
@@ -57,17 +57,19 @@ public class TypingManager : MonoBehaviour
         _answerJ = TypingList.Typing[rand];
 
         //答えの文字列分割リストを更新
-        _answerList?.Clear();
-
+        _answerList.Clear();
         for (int i = 0; i < _answerJ.Length; i++)
         {
             switch (_answerJ[i].ToString())
             {
                 case "っ":
+                    //答えの文字列を分割するときに"っ"はその次の文字とセットにする
                     _answerList.Add((_answerJ[i].ToString() + _answerJ[i + 1].ToString(), _wordBaseData.WordBaseJtoE[_answerJ[i].ToString() + _answerJ[i + 1].ToString()][0]));
+                    //参照する文字列をセットにした文字列の分だけ一つ飛ばす
                     i++;
                     break;
                 case "ゃ" or "ゅ" or "ょ" or "ぁ" or "ぃ" or "ぅ" or "ぇ" or "ぉ":
+                    //答えの文字列を分割するときに"っ"以外の小さい文字はその前の文字とセットにする
                     _answerList[_answerList.Count - 1] = (_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString(), _wordBaseData.WordBaseJtoE[_answerList[_answerList.Count - 1].japanese + _answerJ[i].ToString()][0]);
                     break;
                 default:
@@ -76,7 +78,7 @@ public class TypingManager : MonoBehaviour
             }
         }
 
-        //答えに対応する文字列（ローマ字）を更新
+        //答えに対応するローマ字列の更新
         _answerE = "";
         foreach (var e in _answerList)
         {
@@ -119,53 +121,8 @@ public class TypingManager : MonoBehaviour
                     if (Input.GetKeyDown((KeyCode)key))
                     {
                         Debug.Log((char)(KeyCode)key);
-                        //_inputList.Add(((KeyCode)key).ToString());
+                        //入力した文字を取得
                         _input += (char)(KeyCode)key;
-                        CheckWord();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// BackSpaceに対応したタイピングを検知する関数
-    /// </summary>
-    void InputKeyBack()
-    {
-        if (Input.GetKeyDown(KeyCode.Backspace) && _inputList.Count > 0)
-        {
-            _inputList.RemoveAt(_inputList.Count - 1);
-            //_input = ' ';
-            foreach (var c in _inputList)
-            {
-                //_input += c;
-            }
-            //_outputTextE.text = _input;
-        }
-        else if (Input.GetKeyDown(KeyCode.Return))
-        {
-            if (_answerE == _currentInput)
-            {
-                _currentInput = "";
-                AnswerSet();
-            }
-        }
-        else if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
-        {
-
-        }
-        else
-        {
-            if (_answerE != _currentInput)
-            {
-                foreach (var key in Enum.GetValues(typeof(KeyCode)))
-                {
-                    if (Input.GetKeyDown((KeyCode)key))
-                    {
-                        _inputList.Add(((KeyCode)key).ToString());
-                        //_input = (char)((KeyCode)key);
                         CheckWord();
                         break;
                     }
@@ -182,19 +139,19 @@ public class TypingManager : MonoBehaviour
         //候補を取得
         GetCandidate();
 
-        //"ん"のような文字かどうか
+        //"ん"などかどうか
         if (_answerList[_typingIndex].japanese == _stepWord)
         {
             if (_answerCandidate == "" && _wordBaseData.WordBaseJtoE[_stepWord].Contains(_input.Substring(0, _input.Length - 1)))
             {
-                Debug.Log("StepWordの自動変換");
                 //"nk"のようにして打った時
-                //答えの文字列を更新
+                //答えの文字列を更新（（"ん","n"）のようにする）
                 _answerList[_typingIndex] = (_stepWord, _input.Substring(0, _input.Length - 1));
-                //入力文字を更新
+                //入力文字を更新（"nk"=>"k"のようにする）
                 _input = _input[_input.Length - 1].ToString();
-                //入力待ちの文字列のインデックスを更新
+                //入力待ちの文字列のインデックスを更新（"ん"の次の文字を参照するようにする）
                 _typingIndex++;
+                Debug.Log("StepWordの自動変換");
                 //候補を再取得
                 GetCandidate();
             }
@@ -203,27 +160,28 @@ public class TypingManager : MonoBehaviour
         //タイピングの正誤判定
         if (_answerCandidate == "")
         {
+            //候補が一切得られなかった（入力がそもそも間違っていた）とき
             //入力した文字を消す
             _input = _input.Substring(0, _input.Length - 1);
             Debug.Log("タイピング失敗");
         }
         else
         {
-            //入力完了文字列の更新
+            //入力完了文字列の更新（今入力したものを保存）
             _currentInput += _input[_input.Length - 1];
-            Debug.Log(_currentInput);
+            Debug.Log($"入力完了：{_currentInput}");
 
-            //入力文字列が候補に一致したら
+            //入力文字列が候補に一致したら（完全に入力したら）
             if (_answerCandidate == _input)
             {
-                Debug.Log($"{_answerList[_typingIndex].japanese}のタイピング完了");
+                Debug.Log($"\"{_answerList[_typingIndex].japanese}\"のタイピング完了");
                 //入力を初期化
                 _input = "";
-                //入力待ちの文字列のインデックスを更新
+                //入力待ちの文字列のインデックスを更新（次の文字の参照）
                 _typingIndex++;
             }
 
-            //表示する文字列の更新
+            //答えに対応するローマ字列の更新
             _answerE = "";
             foreach (var s in _answerList)
             {
@@ -231,7 +189,7 @@ public class TypingManager : MonoBehaviour
             }
             Debug.Log(_answerE);
 
-            //文字列の表示を更新
+            //答えの文字列の表示を更新
             _outputTextE.text = "";
             for (int i = 0; i < _answerE.Length; i++)
             {
@@ -254,11 +212,11 @@ public class TypingManager : MonoBehaviour
     /// </summary>
     void GetCandidate()
     {
-        //入力待ちの文字列に対するローマ字の候補を更新する
+        //入力待ちの日本語に対応するローマ字の候補を更新する
         _answerCandidate = "";
         for (int i = 0; i < _answerList[_typingIndex].japanese.Length; i++)
         {
-            //文字列に対するローマ字を入力しようとしているかを調べる
+            //入力待ちの日本語に対応するローマ字を入力しようとしているかを調べる
             //文字列については後ろからだんだん狭める
             foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - i)])
             {
@@ -276,20 +234,19 @@ public class TypingManager : MonoBehaviour
             {
                 if (i > 0)
                 {
-                    //文字列を分割する
+                    //入力待ちの日本語をそのまま入力しようとしていなかったとき
+                    //入力待ちの日本語を分割する
                     string str1 = _answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - i);
                     string str2 = _answerList[_typingIndex].japanese.Substring(_answerList[_typingIndex].japanese.Length - i);
 
-                    //分割した文字列に対して答えの文字列を更新する
+                    //分割した日本語に対して答えのローマ字列を更新する
                     _answerList.Insert(_typingIndex + 1, (str1, _answerCandidate));
                     _answerList.Insert(_typingIndex + 2, (str2, _wordBaseData.WordBaseJtoE[str2][0]));
                     _answerList.RemoveAt(_typingIndex);
-
-                    Debug.Log("分割後文字列\n" + $"{str1}:{str2}");
                 }
                 else
                 {
-                    //分割した正解文字列を更新
+                    //入力に合わせて正解の文字列を更新
                     _answerList[_typingIndex] = (_answerList[_typingIndex].japanese, _answerCandidate);
                 }
                 break;
@@ -303,11 +260,16 @@ public class TypingManager : MonoBehaviour
     class WordBaseData
     {
         Dictionary<string, string> _wordBaseEtoJ;
+        /// <summary>ローマ字入力に対応する日本語を取得できる</summary>
         public Dictionary<string, string> WordBaseEtoJ { get { return _wordBaseEtoJ; } }
 
         Dictionary<string, List<string>> _wordBaseJtoE;
+        /// <summary>任意の日本語に対して、変換することができるローマ字列の候補を取得できる</summary>
         public Dictionary<string, List<string>> WordBaseJtoE { get { return _wordBaseJtoE; } }
 
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
         public WordBaseData()
         {
             _wordBaseEtoJ = new Dictionary<string, string>();
@@ -316,6 +278,9 @@ public class TypingManager : MonoBehaviour
             JapaneseToEnglish();
         }
 
+        /// <summary>
+        /// ローマ字列に対して変換される日本語を対応させた辞書を作る関数
+        /// </summary>
         public void EnglishToJapanese()
         {
             //あ行
@@ -878,8 +843,12 @@ public class TypingManager : MonoBehaviour
 
             //記号
             _wordBaseEtoJ["-"] = "ー";
+            _wordBaseEtoJ["1"] = "！";
         }
 
+        /// <summary>
+        /// 一つの日本語に対して複数のローマ字列をセットにした辞書を作る関数
+        /// </summary>
         public void JapaneseToEnglish()
         {
             foreach (var dic in _wordBaseEtoJ)
