@@ -6,7 +6,7 @@ public class Tweet : MonoBehaviour
     [SerializeField] float _score;
     [SerializeField] float _readSpeed;
     [SerializeField] float _mentalDamage;
-    [SerializeField] TweetState _tweetState;
+    [SerializeField] TypingList _typingList;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -18,14 +18,5 @@ public class Tweet : MonoBehaviour
     void Update()
     {
         
-    }
-}
-
-namespace TweetData
-{
-    public enum TweetState
-    {
-        Good,
-        Bad
     }
 }

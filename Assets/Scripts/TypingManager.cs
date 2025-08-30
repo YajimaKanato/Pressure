@@ -1,14 +1,19 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
+using TweetData;
 
 public class TypingManager : MonoBehaviour
 {
     [SerializeField] Text _outputTextJ;
     [SerializeField] Text _outputTextE;
+    [SerializeField] Text _banText;
+    [SerializeField] Text _scoreText;
+    [SerializeField] TypingList _typingList;
 
     WordBaseData _wordBaseData;
+    TypingData _typingData;
     /// <summary>入力された文字列を分割したもの</summary>
     List<string> _inputList = new List<string>();
     /// <summary>答えの文字列を分割したもののセットリスト</summary>
@@ -16,6 +21,8 @@ public class TypingManager : MonoBehaviour
 
     /// <summary>入力途中でも次に関係ない文字が入力されると自動変換される文字（"ん"など）</summary>
     string _stepWord = "ん";
+    /// <summary>答えとなる表示する文字列（日本語）</summary>
+    string _answerOutputJ = "こんにちは";
     /// <summary>答えとなる文字列（日本語）</summary>
     string _answerJ = "こんにちは";
     /// <summary>答えとなる文字列（ローマ字）</summary>
@@ -28,11 +35,19 @@ public class TypingManager : MonoBehaviour
     string _input;
     /// <summary>入力待ちの日本語がある_answerListのインデックス</summary>
     int _typingIndex = 0;
+    /// <summary>BAN用の入力受付</summary>
+    string _banInput;
+
+    int _score = 0;
+    bool _isShift = false;
+    const string BAN = "ban";
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         //日本語とローマ字の対応表を取得
         _wordBaseData = new WordBaseData();
+        //初期設定
+        SetUp();
         //答えを設定
         AnswerSet();
     }
@@ -45,6 +60,24 @@ public class TypingManager : MonoBehaviour
         {
             InputKeyNotBack();
         }
+
+        if (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.RightShift))
+        {
+            _isShift = false;
+            _banInput = "";
+            _banText.text = _banInput;
+        }
+    }
+
+    /// <summary>
+    /// 初期設定を行う関数
+    /// </summary>
+    void SetUp()
+    {
+        _outputTextJ.text = "";
+        _outputTextE.text = "";
+        _banText.text = "";
+        _scoreText.text = "Score : " + _score.ToString();
     }
 
     /// <summary>
@@ -53,8 +86,11 @@ public class TypingManager : MonoBehaviour
     void AnswerSet()
     {
         //答えを更新
-        int rand = UnityEngine.Random.Range(0, TypingList.Typing.Count);
-        _answerJ = TypingList.Typing[rand];
+        int rand = UnityEngine.Random.Range(0, _typingList.TypingLists.Count);
+        _typingData = _typingList.TypingLists[rand];
+        _answerJ = _typingData.TweetText;
+        _answerOutputJ = _typingData.TweetOutput;
+
 
         //答えの文字列分割リストを更新
         _answerList.Clear();
@@ -86,11 +122,16 @@ public class TypingManager : MonoBehaviour
         }
 
         //答えのテキストを更新
-        _outputTextJ.text = _answerJ;
+        _outputTextJ.text = _answerOutputJ;
         _outputTextE.text = _answerE;
 
         //入力待ちのインデックスを初期化
         _typingIndex = 0;
+
+        //入力関連のリセット
+        _currentInput = "";
+        _banInput = "";
+        _input = "";
     }
 
     /// <summary>
@@ -103,27 +144,44 @@ public class TypingManager : MonoBehaviour
             //タイピング完了時のみ
             if (_answerE == _currentInput)
             {
-                _currentInput = "";
+                if (_typingData.TweetState == TweetState.Good)
+                {
+
+                }
+                else if (_typingData.TweetState == TweetState.Bad)
+                {
+
+                }
+                _score += _typingData.TweetScore;
+                _scoreText.text = "Score : " + _score.ToString();
                 AnswerSet();
             }
         }
-        else if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
+        else if (Input.GetKeyDown(KeyCode.RightShift) || Input.GetKeyDown(KeyCode.LeftShift))
         {
-
+            Debug.Log("Shift");
+            _isShift = true;
         }
         else
         {
-            //タイピング未完了時のみ
-            if (_answerE != _currentInput)
+            foreach (var key in Enum.GetValues(typeof(KeyCode)))
             {
-                foreach (var key in Enum.GetValues(typeof(KeyCode)))
+                if (Input.GetKeyDown((KeyCode)key))
                 {
-                    if (Input.GetKeyDown((KeyCode)key))
+                    Debug.Log((char)(KeyCode)key);
+                    //入力した文字を取得
+                    if (_isShift)
                     {
-                        Debug.Log((char)(KeyCode)key);
-                        //入力した文字を取得
-                        _input += (char)(KeyCode)key;
-                        CheckWord();
+                        _banInput += (char)(KeyCode)key;
+                        CheckBAN();
+                    }
+                    else
+                    {
+                        if (_answerE != _currentInput)
+                        {
+                            _input += (char)(KeyCode)key;
+                            CheckWord();
+                        }
                         break;
                     }
                 }
@@ -220,13 +278,35 @@ public class TypingManager : MonoBehaviour
             //文字列については後ろからだんだん狭める
             foreach (var s in _wordBaseData.WordBaseJtoE[_answerList[_typingIndex].japanese.Substring(0, _answerList[_typingIndex].japanese.Length - i)])
             {
+                for (int j = 0; j < _input.Length; j++)
+                {
+                    if (s.Length >= _input.Length)
+                    {
+                        if (!_input.Contains(s.Substring(0, j + 1)))
+                        {
+
+                            _answerCandidate = "";
+                            break;
+                        }
+
+                        //入力する文字列の候補を取得
+                        _answerCandidate = s;
+                    }
+                }
+
+                if (_answerCandidate != "")
+                {
+                    Debug.Log("候補取得:" + s);
+                    break;
+                }
+                /*
                 if (s.Contains(_input))
                 {
                     //入力する文字列の候補を取得
                     _answerCandidate = s;
                     Debug.Log("候補取得:" + s);
                     break;
-                }
+                }*/
             }
 
             //ローマ字の候補を得られたら（適した入力をしようとしていたら）
@@ -251,6 +331,40 @@ public class TypingManager : MonoBehaviour
                 }
                 break;
             }
+        }
+    }
+
+    /// <summary>
+    /// BANを確認する関数
+    /// </summary>
+    void CheckBAN()
+    {
+        //"BAN"の入力確認
+        _banText.text = "";
+        for (int i = 0; i < _banInput.Length; i++)
+        {
+            if (BAN[i] != _banInput[i])
+            {
+                _banInput = _banInput.Substring(0, _banInput.Length - 1);
+                break;
+            }
+            _banText.text += _banInput[i].ToString().ToUpper();
+        }
+
+        //"BAN"が完成したら答え更新
+        if (_banInput == BAN)
+        {
+            if (_typingData.TweetState == TweetState.Good)
+            {
+
+            }
+            else if (_typingData.TweetState == TweetState.Bad)
+            {
+
+            }
+            _score += _typingData.BanScore;
+            _scoreText.text = "Score : " + _score.ToString();
+            AnswerSet();
         }
     }
 
