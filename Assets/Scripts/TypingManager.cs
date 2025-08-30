@@ -4,18 +4,15 @@ using UnityEngine;
 using UnityEngine.UI;
 using TweetData;
 
-public class TypingManager : MonoBehaviour
+public class TypingManager : ObjectBase
 {
     [SerializeField] Text _outputTextJ;
     [SerializeField] Text _outputTextE;
     [SerializeField] Text _banText;
-    [SerializeField] Text _scoreText;
     [SerializeField] TypingList _typingList;
 
     WordBaseData _wordBaseData;
     TypingData _typingData;
-    /// <summary>入力された文字列を分割したもの</summary>
-    List<string> _inputList = new List<string>();
     /// <summary>答えの文字列を分割したもののセットリスト</summary>
     List<(string japanese, string english)> _answerList = new List<(string, string)>();
 
@@ -39,6 +36,7 @@ public class TypingManager : MonoBehaviour
     string _banInput;
 
     int _score = 0;
+    public int Score { get { return _score; } }
     bool _isShift = false;
     const string BAN = "ban";
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -55,17 +53,23 @@ public class TypingManager : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        //何かしらの入力を受け付ける
-        if (Input.anyKeyDown)
+        if (_isStart&&!_isEnd)
         {
-            InputKeyNotBack();
-        }
+            if (!_isPause)
+            {
+                //何かしらの入力を受け付ける
+                if (Input.anyKeyDown)
+                {
+                    InputKeyNotBack();
+                }
 
-        if (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.RightShift))
-        {
-            _isShift = false;
-            _banInput = "";
-            _banText.text = _banInput;
+                if (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.RightShift))
+                {
+                    _isShift = false;
+                    _banInput = "";
+                    _banText.text = _banInput;
+                }
+            }
         }
     }
 
@@ -77,7 +81,6 @@ public class TypingManager : MonoBehaviour
         _outputTextJ.text = "";
         _outputTextE.text = "";
         _banText.text = "";
-        _scoreText.text = "Score : " + _score.ToString();
     }
 
     /// <summary>
@@ -153,7 +156,6 @@ public class TypingManager : MonoBehaviour
 
                 }
                 _score += _typingData.TweetScore;
-                _scoreText.text = "Score : " + _score.ToString();
                 AnswerSet();
             }
         }
@@ -299,14 +301,6 @@ public class TypingManager : MonoBehaviour
                     Debug.Log("候補取得:" + s);
                     break;
                 }
-                /*
-                if (s.Contains(_input))
-                {
-                    //入力する文字列の候補を取得
-                    _answerCandidate = s;
-                    Debug.Log("候補取得:" + s);
-                    break;
-                }*/
             }
 
             //ローマ字の候補を得られたら（適した入力をしようとしていたら）
@@ -363,7 +357,6 @@ public class TypingManager : MonoBehaviour
 
             }
             _score += _typingData.BanScore;
-            _scoreText.text = "Score : " + _score.ToString();
             AnswerSet();
         }
     }
